@@ -1,0 +1,122 @@
+<?
+// Подключаем пролог ядра Bitrix — инициализируем окружение Bitrix для работы скрипта
+require($_SERVER["DOCUMENT_ROOT"]."/bitrix/header.php");
+
+// Устанавливаем заголовок страницы в интерфейсе Bitrix
+$APPLICATION->SetTitle("AJAX");
+
+// Инициализируем JavaScript‑библиотеку Bitrix с модулем AJAX
+CJSCore::Init(array('ajax'));
+
+// Задаём идентификатор AJAX‑запроса — используется для проверки корректности запроса
+$sidAjax = 'testAjax';
+
+// Проверяем, пришёл ли AJAX‑запрос с ожидаемым идентификатором
+if (isset($_REQUEST['ajax_form']) && $_REQUEST['ajax_form'] == $sidAjax) {
+    // Очищаем буфер вывода — предотвращаем дублирование контента при AJAX‑ответе
+    $GLOBALS['APPLICATION']->RestartBuffer();
+
+    // Формируем и отправляем JSON‑ответ в формате, понятном JavaScript (Bitrix‑функция)
+    echo CUtil::PhpToJSObject(array(
+        'RESULT' => 'HELLO',  // Основное поле ответа — передаём строку «HELLO»
+        'ERROR' => ''       // Поле для ошибок — пока пусто
+    ));
+
+    // Завершаем выполнение скрипта после отправки ответа — предотвращаем дальнейший вывод
+    die();
+}
+?>
+
+<!-- HTML‑структура страницы -->
+<div class="group">
+    <!-- Блок для отображения результата AJAX‑запроса -->
+    <div id="block"></div>
+    <!-- Индикатор загрузки: отображается во время ожидания ответа -->
+    <div id="process">wait ... </div>
+</div>
+
+<script>
+    // Включаем режим отладки Bitrix JS — логируем действия в консоли браузера
+    window.BXDEBUG = true;
+
+    /**
+     * Функция инициирует AJAX‑запрос к серверу
+     */
+    function DEMOLoad() {
+        // Скрываем блок с результатом — готовим интерфейс к обновлению
+        BX.hide(BX("block"));
+        // Показываем индикатор загрузки
+        BX.show(BX("process"));
+
+        // Отправляем запрос на ту же страницу, но с пометкой «ajax_form=testAjax»
+        // Когда придёт ответ, запустится функция DEMOResponse
+        BX.ajax.loadJSON(
+            '<?=$APPLICATION->GetCurPage()?>?ajax_form=<?=$sidAjax?>', // URL запроса
+            DEMOResponse 
+        );
+    }
+
+    /**
+     * Обрабатывает ответ от сервера после AJAX‑запроса
+     * @param {Object} data — данные, полученные от сервера (JSON)
+     */
+    function DEMOResponse(data) {
+        // Выводим отладочную информацию в консоль браузера
+        BX.debug('AJAX-DEMOResponse ', data);
+
+        // Заполняем блок с результатом полученным значением из поля RESULT
+        BX("block").innerHTML = data.RESULT;
+
+        // Показываем блок с результатом
+        BX.show(BX("block"));
+        // Скрываем индикатор загрузки
+        BX.hide(BX("process"));
+
+        // Генерируем пользовательское событие для дополнительных действий
+        BX.onCustomEvent(
+            BX(BX("block")), // Элемент, на котором вызывается событие
+            'DEMOUpdate'     // Название события
+        );
+    }
+
+    // Выполняем код после полной загрузки DOM
+    BX.ready(function() {
+        /*
+         * Закомментированный код:
+         * Подписываемся на событие DEMOUpdate — при его срабатывании перезагружаем страницу.
+         * Сейчас отключено для демонстрации базового сценария.
+         */
+        // BX.addCustomEvent(BX("block"), 'DEMOUpdate', function() {
+        //     window.location.href = window.location.href;
+        // });
+
+        // Скрываем блоки результата и загрузки
+        BX.hide(BX("block"));
+        BX.hide(BX("process"));
+
+        // Настраиваем делегирование событий:
+        // Обрабатываем клики по элементам с классом css_ajax в пределах document.body
+        BX.bindDelegate(
+            document.body,                  // Смотрим клики внутри всей страницы
+            'click',                       // Реагируем на клик
+            {className: 'css_ajax'},      // Фильтр: элементы с указанным классом
+            function(e) {                   // Обработчик клика
+                if (!e) e = window.event; //  Для старых браузеров: получаем информацию о клике
+
+                // Запускаем AJAX‑загрузку
+                DEMOLoad();
+
+                // Не даём браузеру сделать что-то ещё (например, перейти по ссылке)
+                return BX.PreventDefault(e);
+            }
+        );
+    });
+</script>
+
+<!-- Элемент, клик по которому запускает AJAX‑запрос -->
+<div class="css_ajax">click Me</div>
+
+<?
+// Подключаем эпилог ядра Bitrix — завершаем работу с окружением Bitrix
+require($_SERVER["DOCUMENT_ROOT"]."/bitrix/footer.php");
+?>
